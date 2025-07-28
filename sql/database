@@ -7,9 +7,82 @@ from sqlalchemy import text, create_engine
 
 
 db_username = os.environ.get('db_username')
+db_password = os.environ.get('db_password')
+db_host = os.environ.get('db_host')
+db_port = os.environ.get('db_port')
+db_name = os.environ.get('db_name')
+
+
+def df_to_sql(curr_df, db_engine, schema_name, table_name, pkeys):
+    """"Upserts DataFrames into SQL at the needed Schema
+
+        Args:
+        curr_df (dataframe): the current dataframe that is being used 
+        db_engine(engine): the db engine the program will use 
+        schema_name(str): the name of the schema that will be added upon 
+        table_name(str): name of the table 
+        pkeys(str, list): Pkey columns name, or lislt of Pkey column names 
+
+        Returns:
+
+        Bool: true if successful, false if not 
+    """
+
+    with db_engine.connect() as connection:
+        if curr_df.empty:
+            print("DF is empty")
+            return True
+        if pkeys:
+            curr_df = curr_df.set_index(pkeys)
+        else:
+            raise Exception("primary keys need to be set first")
+        
+        try:
+            upsert(con = connection, df = curr_df, schema= schema_name, table_name = table_name,
+                   add_new_columns= True, if_row_exists='update', create_schema= True)
+            connection.commit()
+            print("upsert done successfully")
+        except Exception as e:
+            print(f"An error has occurred: {e}")
+            connection.rollback()
+            return False
+        
+        return True
 
 def create_db_connection_string(db_username, db_password, db_host, db_port, db_name):
+    """"Creates a connection to the Postgres Server that will host all of the data; creates DB engine
+
+        Args:
+        db_host(str): database URL for Postgres
+        db_port(str): database port 
+        db_username(str): name of DB 
+        db_password(str): password of the DB 
+        db_name(str): the DB itself 
+
+        Returns:
+        engine: sqlalchemy engine created 
+    
+    """
     connection_url = 'postgresql+psycopg2://'+db_username+db_password+'@'+db_host+':'+db_port+'/'+db_name
     return connection_url
 
-create_engine()
+
+def create_db_engine(db_username, db_password, db_host, db_name, db_port):
+    """"creates DB engine to return data
+
+        Args: 
+        db_username(str): the name of the DB 
+        db_password(str): the password of the DB 
+        db_host(str): the URL of the host db (localhost in this instance)
+        db_name(str): the name of the DB 
+        db_port(str): the port the DB is located on (5432 for now)
+
+        Returns: 
+        creates the DB engine 
+    """
+    db_url= create_db_connection_string(
+            db_host. db_port, db_name, db_username, db_password)
+    alchemy_engine = create_engine(db_url, pool_recycle= 3600, future= True)
+    return alchemy_engine
+
+
